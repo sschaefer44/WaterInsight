@@ -276,3 +276,44 @@ def getStandardizedWaterData(siteCode, startDate, endDate):
         standardized_data.append(record)
     
     return standardized_data
+
+def demonstrateAPICollection(stateCode, numSites, startDate, endDate):
+    """Demonstrate live API collection and database storage for checkpoint presentation"""
+    
+    print(f"=== Demonstrating API Collection for {stateCode} ===")
+    
+    print("1. Calling USGS API to get monitoring sites...")
+    demo_sites = getSites(stateCode, startDate, endDate)[:numSites]  # Limit to 3 sites
+    
+    print(f"   Found {len(demo_sites)} sites for demonstration:")
+    for i, site in enumerate(demo_sites):
+        print(f"   {i+1}. {site['siteName'][:60]}")
+    
+    print("\n2. Storing site locations in database...")
+    for site in demo_sites:
+        database.insertSiteLocation(site, stateCode)
+    print(f"   Inserted {len(demo_sites)} site locations")
+    
+    print("\n3. Calling API for water measurement data...")
+    total_records = 0
+    
+    for i, site in enumerate(demo_sites):
+        print(f"   Collecting data for site {i+1}: {site['siteName'][:40]}...")
+        
+        water_data = getStandardizedWaterData(
+            site['siteCode'], 
+            startDate, 
+            endDate
+        )
+        
+        if water_data:
+            records_inserted = database.insertWaterData(water_data)
+            total_records += records_inserted
+            print(f"      -> Stored {records_inserted} daily records")
+        else:
+            print(f"      -> No data available for this period")
+    
+    print(f"\n4. API Collection Complete!")
+    print(f"   Total records collected and stored: {total_records}")
+    
+    return demo_sites, total_records

@@ -1,7 +1,10 @@
 import database
-from API import getSites, getStandardizedWaterData
+from API import getSites, getStandardizedWaterData, demonstrateAPICollection
 import time
 from datetime import datetime, timedelta
+import pandas as pd
+import warnings
+warnings.filterwarnings('ignore', message='pandas only supports SQLAlchemy connectable')
 
 def collectStateHistorical(stateCode, startYear, endYear):
     """Collect data for all sites in a state within a specified year range"""
@@ -60,5 +63,28 @@ def collectMultiStateHistorical(states, startYear, endYear):
         time.sleep(5)
 
 if __name__ == "__main__":
+    demonstrationSites, totalRecords = demonstrateAPICollection('WI', 3, '2025-07-14', '2025-07-15')
 
-    collectStateHistorical('MI', 2016, 2024)
+    if demonstrationSites:
+        conn = database.getConnection()
+        
+        siteCodes = [site['siteCode'] for site in demonstrationSites]
+        siteCodesStr = "', '".join(siteCodes)
+        
+        recentRecordsQuery = f"""
+            SELECT wd.site_code, sl.site_name, wd.date, wd.discharge, 
+                   wd.gage_height, wd.stream_elevation, wd.temperature, wd.dissolved_oxygen
+            FROM waterdata wd
+            JOIN sitelocations sl ON wd.site_code = sl.site_code
+            WHERE wd.site_code IN ('{siteCodesStr}')
+            AND wd.date BETWEEN '2025-07-14' AND '2025-07-15'
+            ORDER BY wd.site_code, wd.date
+        """
+        
+        recentRecords = pd.read_sql(recentRecordsQuery, conn)
+        conn.close()
+        
+        print(f"\nShowing the {len(recentRecords)} records just added:")
+        print("=" * 100)
+        for _, row in recentRecords.iterrows():
+            print(f"Site: {row['site_name'][:50]} | Date: {row['date']} | Discharge: {row['discharge']} | Gage Height: {row['gage_height']}")
