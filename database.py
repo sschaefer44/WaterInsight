@@ -1,14 +1,23 @@
 import psycopg2
 from psycopg2.extras import execute_values
+from sqlalchemy import create_engine
+import pandas as pd
+
+DB_CONFIG = {
+    'host': 'localhost',
+    'database': 'waterinsight',
+    'user': 'postgres',  
+    'password': 'pgDB' 
+}
 
 def getConnection():
-    """Create database connection"""
-    return psycopg2.connect(
-        host='localhost',
-        database='waterinsight',
-        user='postgres',      # Replace with your PostgreSQL username
-        password='pgDB'   # Replace with your PostgreSQL password
-    )
+    """Create psychopg2 connection for inserts """
+    return psycopg2.connect(**DB_CONFIG)
+
+def getSQLAlchemyEngine():
+    """Create SQLAlchemy engine for pandas operations"""
+    connString = f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}/{DB_CONFIG['database']}"
+    return create_engine(connString)
 
 def testConnection():
     """Test if database connection works"""
@@ -67,18 +76,14 @@ def insertWaterData(water_records):
     return len(values)
 
 def queryWaterData(site_code, start_date, end_date):
-    """Query water data for demonstration"""
-    conn = getConnection()
-    cur = conn.cursor()
+    """Query water data for demonstration using SQLAlchemy"""
+    engine = getSQLAlchemyEngine()
     
-    cur.execute('''
+    query = '''
         SELECT * FROM waterdata 
         WHERE site_code = %s AND date BETWEEN %s AND %s
         ORDER BY date
-    ''', (site_code, start_date, end_date))
+    '''
     
-    results = cur.fetchall()
-    cur.close()
-    conn.close()
-    
+    results = pd.read_sql(query, engine, params=[site_code, start_date, end_date])
     return results

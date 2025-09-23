@@ -66,7 +66,7 @@ if __name__ == "__main__":
     demonstrationSites, totalRecords = demonstrateAPICollection('WI', 3, '2025-07-14', '2025-07-15')
 
     if demonstrationSites:
-        conn = database.getConnection()
+        engine = database.getSQLAlchemyEngine()
         
         siteCodes = [site['siteCode'] for site in demonstrationSites]
         siteCodesStr = "', '".join(siteCodes)
@@ -81,8 +81,7 @@ if __name__ == "__main__":
             ORDER BY wd.site_code, wd.date
         """
         
-        recentRecords = pd.read_sql(recentRecordsQuery, conn)
-        conn.close()
+        recentRecords = pd.read_sql(recentRecordsQuery, engine)
         
         print(f"\nShowing the {len(recentRecords)} records just added:")
         print("=" * 100)

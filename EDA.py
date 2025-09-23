@@ -4,11 +4,9 @@ import matplotlib.pyplot as plt
 import warnings
 
 def getDatasetOverview():
-    """Get comprehensive overview of entire water data set"""
-    import time
-    
-    conn = database.getConnection()
-    
+    """Get comprehensive overview of entire water data set"""    
+    engine = database.getSQLAlchemyEngine()
+
     overviewQuery = """
         SELECT
             COUNT(*) as totalRecords,
@@ -19,7 +17,7 @@ def getDatasetOverview():
         FROM waterdata
     """
     
-    overview = pd.read_sql(overviewQuery, conn)
+    overview = pd.read_sql(overviewQuery, engine)
 
     stateSummaryQuery = """
         SELECT
@@ -34,7 +32,7 @@ def getDatasetOverview():
         ORDER BY totalRecords DESC
     """
     
-    stateSummary = pd.read_sql(stateSummaryQuery, conn)
+    stateSummary = pd.read_sql(stateSummaryQuery, engine)
 
     parameterAvailQuery = """
         SELECT
@@ -50,9 +48,7 @@ def getDatasetOverview():
         FROM waterdata
     """
     
-    paramAvailability = pd.read_sql(parameterAvailQuery, conn)
-
-    conn.close()
+    paramAvailability = pd.read_sql(parameterAvailQuery, engine)
     
     return overview, stateSummary, paramAvailability
 
