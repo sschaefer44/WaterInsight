@@ -261,60 +261,8 @@ def verifyDatasetCleaning():
 
     print("---------- Verification Complete -----------")
     return True
-def cleanImpossibleValues():
-    """Clean only the impossible values (Step 3)"""
-    engine = database.getSQLAlchemyEngine()
-    
-    print("========== CLEANING IMPOSSIBLE VALUES ==========\n")
-    
-    # First, see how many we're dealing with
-    print("Checking for impossible values...")
-    check_query = """
-        SELECT
-            COUNT(CASE WHEN discharge < 0 THEN 1 END) as negative_discharge,
-            COUNT(CASE WHEN gage_height < 0 THEN 1 END) as negative_gage,
-            COUNT(CASE WHEN temperature < -50 OR temperature > 50 THEN 1 END) as extreme_temp,
-            COUNT(CASE WHEN dissolved_oxygen < 0 OR dissolved_oxygen > 50 THEN 1 END) as extreme_do
-        FROM waterdata
-    """
-    import pandas as pd
-    results = pd.read_sql(check_query, engine)
-    print(results)
-    print()
-    
-    print("Cleaning impossible values...")
-    start = time.time()
-    
-    cleanImpossibleQuery = """
-        UPDATE waterdata
-        SET 
-            discharge = CASE WHEN discharge < 0 THEN NULL ELSE discharge END,
-            gage_height = CASE WHEN gage_height < 0 THEN NULL ELSE gage_height END,
-            temperature = CASE WHEN temperature < -50 OR temperature > 50 THEN NULL ELSE temperature END,
-            dissolved_oxygen = CASE WHEN dissolved_oxygen < 0 OR dissolved_oxygen > 50 THEN NULL ELSE dissolved_oxygen END
-    """
-    
-    with engine.begin() as conn:
-        conn.execute(text(cleanImpossibleQuery))
-    
-    elapsed = time.time() - start
-    print(f"✓ Cleaned impossible values in {elapsed:.1f} seconds\n")
-    
-    # Verify it worked
-    print("Verifying cleanup...")
-    verify = pd.read_sql(check_query, engine)
-    print(verify)
-    print()
-    
-    if verify.sum().sum() == 0:
-        print("✅ ALL CLEANING COMPLETE!")
-    else:
-        print("⚠️ Some impossible values remain")
-    
-    return True
-
 
 if __name__ == "__main__":
-    cleanImpossibleValues()
+    cleanDataset()
 
     verifyDatasetCleaning()
