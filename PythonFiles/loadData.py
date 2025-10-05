@@ -2,7 +2,7 @@ import database
 import pandas as pd
 import numpy as np
 from sqlalchemy import text
-from Pipeline import timeSeriesTrainTestSplit
+from Pipeline import timeSeriesTrainTestSplit, balancedTimeSeriesSplit
 def loadData():
     """Load data from postgreSQL into dataframe"""
     engine = database.getSQLAlchemyEngine()

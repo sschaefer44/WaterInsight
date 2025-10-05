@@ -129,7 +129,57 @@ def summarizeFeatures(feature_cols):
     print(f"  Cross-var:    {len(cross)}")
     print(f"  Encoded:      {len(encoded)}")
 
-
+def balancedTimeSeriesSplit(df, targetCol):
+    """
+    Create train/val/test split with balanced target distribution.
+    Samples 15% from each year for validation to avoid distribution mismatch.
+    Uses 2024 as held-out test set.
+    """
+    import pandas as pd
+    
+    # Ensure year column exists
+    if 'year' not in df.columns:
+        raise ValueError("DataFrame must have 'year' column")
+    
+    print("\n" + "-" * 15)
+    print("Splitting into Train/Val/Test sets (Balanced)")
+    print("-" * 15)
+    
+    # Test set: all of 2024
+    testDF = df[df['year'] == 2024].copy()
+    
+    # Train/Val: 2016-2023
+    trainValDF = df[df['year'] < 2024].copy()
+    
+    # Sample 15% from each year for validation
+    valDFs = []
+    trainDFs = []
+    
+    for year in sorted(trainValDF['year'].unique()):
+        yearDF = trainValDF[trainValDF['year'] == year]
+        valSize = int(len(yearDF) * 0.15)
+        
+        # Random sample for validation (fixed seed for reproducibility)
+        valYear = yearDF.sample(n=valSize, random_state=42)
+        trainYear = yearDF.drop(valYear.index)
+        
+        valDFs.append(valYear)
+        trainDFs.append(trainYear)
+    
+    trainDF = pd.concat(trainDFs).reset_index(drop=True)
+    valDF = pd.concat(valDFs).reset_index(drop=True)
+    testDF = testDF.reset_index(drop=True)
+    
+    print(f"\nTrain (2016-2023, 85% each year): {len(trainDF):,} rows ({len(trainDF)/len(df)*100:.1f}%)")
+    print(f"Validation (15% from each year):  {len(valDF):,} rows ({len(valDF)/len(df)*100:.1f}%)")
+    print(f"Test (2024):                       {len(testDF):,} rows ({len(testDF)/len(df)*100:.1f}%)")
+    
+    print(f"\nTarget ({targetCol}) Statistics")
+    print(f"  Train: mean={trainDF[targetCol].mean():.2f}, std={trainDF[targetCol].std():.2f}")
+    print(f"  Val:   mean={valDF[targetCol].mean():.2f}, std={valDF[targetCol].std():.2f}")
+    print(f"  Test:  mean={testDF[targetCol].mean():.2f}, std={testDF[targetCol].std():.2f}")
+    
+    return trainDF, valDF, testDF
 # MAIN
 
 if __name__ == "__main__":

@@ -5,21 +5,50 @@ from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 import time 
 import joblib
+import random
 
-print("-" * 15)
-print("MLP Model for Discharge (cf/s)")
-print("-" * 15)
+np.random.seed(42)
+tf.random.set_seed(42)
+random.seed(42)
 
-# =========== LOAD DATA ===========
-print(f"\nLoading engineered data")
-df = loadData.loadModelReadyData('CSV Backups/engineeredFeatures.csv')
-featureCols = loadData.loadFeatureNames('CSV Backups/featureColumns.txt')
+def trainModel(model, X_train, y_train, X_val, y_val, epochs, batchSize):
+    """Train MLP model"""
+    print("-" * 15)
+    print(f"Training MLP")
+    print("-" * 15)
+    print(f"Epochs: {epochs}")
+    print(f"Batch Size: {batchSize}")
 
-trainDF, valDF, testDF = loadData.timeSeriesTrainTestSplit(df, 'discharge')
+    # Callbacks
+    earlyStopping = tf.keras.callbacks.EarlyStopping(
+        monitor = 'val_loss',
+        patience = 20,
+        restore_best_weights=True,
+        verbose=1
+    )
 
-# Split data into X and Y sets for train/val/test
-X_train, y_train, X_val, y_val, X_test, y_test = loadData.prepareDataForTraining(trainDF, valDF, testDF, featureCols, 'discharge')
+    reducleLR = tf.keras.callbacks.ReduceLROnPlateau(
+        monitor='val_loss',
+        factor = 0.5,
+        patience = 3,
+        min_lr = 1e-6,
+        verbose = 1
+    )
 
+    startTime = time.time()
+
+    history = model.fit(
+        X_train, y_train,
+        validation_data = (X_val, y_val),
+        epochs = epochs,
+        batch_size = batchSize,
+        callbacks = [earlyStopping, reducleLR],
+        verbose = 1
+    )
+
+    elapsed = time.time() - startTime
+    print(f"\nTraining Completed in {elapsed/60:.2f} Minutes")
+    return history
 
 def scaleFeatures(X_train, X_val, X_test, y_train, y_val, y_test):
     """Standardize scaling of X sets. Mean = 0, STD = 1"""
@@ -39,16 +68,12 @@ def scaleFeatures(X_train, X_val, X_test, y_train, y_val, y_test):
     
     print("Scaling complete")
 
-    joblib.dump(featureScaler, 'feature_scaler.pkl')
-    joblib.dump(targetScaler, 'target_scaler.pkl')
+    joblib.dump(featureScaler, 'Scaler/feature_scaler.pkl')
+    joblib.dump(targetScaler, 'Scaler/target_scaler.pkl')
     
     print("Saved scalers")
     return X_train_scaled, X_val_scaled, X_test_scaled, y_train_scaled, y_val_scaled, y_test_scaled, featureScaler, targetScaler
 
-# Scale
-X_train_scaled, X_val_scaled, X_test_scaled, y_train_scaled, y_val_scaled, y_test_scaled, featureScaler, targetScaler = scaleFeatures(X_train, X_val, X_test, y_train, y_val, y_test)
-
-# =========== BUILD MODEL ===========
 def buildMLP(inputDim, hiddenLayers, dropoutRate, LR):
 
     """
@@ -96,53 +121,6 @@ def buildMLP(inputDim, hiddenLayers, dropoutRate, LR):
     model.summary()
     
     return model
-
-inputDim = X_train_scaled.shape[1]
-MLP = buildMLP(inputDim, [128, 64], dropoutRate=0.2, LR = 0.001)
-
-# =========== TRAIN MODEL ===========
-def trainModel(model, X_train, y_train, X_val, y_val, epochs, batchSize):
-    """Train MLP model"""
-    print("-" * 15)
-    print(f"Training MLP")
-    print("-" * 15)
-    print(f"Epochs: {epochs}")
-    print(f"Batch Size: {batchSize}")
-
-    # Callbacks
-    earlyStopping = tf.keras.callbacks.EarlyStopping(
-        monitor = 'val_loss',
-        patience = 10,
-        restore_best_weights=True,
-        verbose=1
-    )
-
-    reducleLR = tf.keras.callbacks.ReduceLROnPlateau(
-        monitor='val_loss',
-        factor = 0.5,
-        patience = 5,
-        min_lr = 1e-6,
-        verbose = 1
-    )
-
-    startTime = time.time()
-
-    history = model.fit(
-        X_train, y_train,
-        validation_data = (X_val, y_val),
-        epochs = epochs,
-        batch_size = batchSize,
-        callbacks = [earlyStopping, reducleLR],
-        verbose = 1
-    )
-
-    elapsed = time.time() - startTime
-    print(f"\nTraining Completed in {elapsed/60:.2f} Minutes")
-    return history
-
-history = trainModel(MLP, X_train_scaled, y_train_scaled, X_val_scaled, y_val_scaled, 50, 256)
-
-# =========== EVAL. AND VISUALIZATION ===========
 
 def plotTrainingHistory(history):
     """Plot loss curves"""
@@ -197,14 +175,39 @@ def evalModel(model, X_test, y_test_original, targetScaler):
     return y_pred
 
 
-y_pred_test = evalModel(MLP, X_test_scaled, y_test, targetScaler)
+if __name__ == '__main__':
+    # =========== LOAD DATA ===========
+    print("-" * 15)
+    print("MLP Model for Discharge (cf/s)")
+    print("-" * 15)
+    print(f"\nLoading engineered data")
+    df = loadData.loadModelReadyData('CSV Backups/engineeredFeatures.csv')
+    featureCols = loadData.loadFeatureNames('CSV Backups/featureColumns.txt')
 
-plotTrainingHistory(history)
+    trainDF, valDF, testDF = loadData.balancedTimeSeriesSplit(df, 'discharge')
 
-# Save model
-MLP.save('SavedModels/discharge_mlp_model.keras')
-print("\nModel saved to discharge_mlp_model.keras")
+    # Split data into X and Y sets for train/val/test
+    X_train, y_train, X_val, y_val, X_test, y_test = loadData.prepareDataForTraining(trainDF, valDF, testDF, featureCols, 'discharge')
 
-print('-' * 15)
-print("MODEL TRAINING COMPLETE")
-print('-' * 15)
+    # Scale
+    X_train_scaled, X_val_scaled, X_test_scaled, y_train_scaled, y_val_scaled, y_test_scaled, featureScaler, targetScaler = scaleFeatures(X_train, X_val, X_test, y_train, y_val, y_test)
+
+    # =========== BUILD MODEL ===========
+    inputDim = X_train_scaled.shape[1]
+    MLP = buildMLP(inputDim, [128, 64], dropoutRate=0.2, LR = 0.001)
+
+    # =========== TRAIN MODEL ===========
+    history = trainModel(MLP, X_train_scaled, y_train_scaled, X_val_scaled, y_val_scaled, 50, 256)
+
+    # =========== EVAL. AND VISUALIZATION ===========
+    y_pred_test = evalModel(MLP, X_test_scaled, y_test, targetScaler)
+
+    plotTrainingHistory(history)
+
+    # Save model
+    MLP.save('SavedModels/discharge_mlp_model.keras')
+    print("\nModel saved to discharge_mlp_model.keras")
+
+    print('-' * 15)
+    print("MODEL TRAINING COMPLETE")
+    print('-' * 15)
