@@ -3,3 +3,10 @@
 *.avi
 *.csv
 *.txt
+*.pkl
+*.keras
+*.png
+*.h5
+*.jpg
+__pycache__/
+.DS_Store
