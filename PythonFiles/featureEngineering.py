@@ -22,10 +22,7 @@ def temporalFeatures(df):
         9: 3, 10: 3, 11: 3  # Fall
     })
 
-    # Cycle encoding. Raw month number will be treated as continuous numbers by model. 
-    # By encoding in the fomrat of: (sin, cosine), it fixes the continous number issue.
-    # E.G. December (12) and January (1) are treated as very far apart months when using 1-12.
-    # When they are encoded to (sin, cosine) the last day of December is next to the first day of January.
+    # Cycle encoding
     df['dayOfYearSine'] = np.sin(2 * np.pi * df['dayOfYear'] /365.25)
     df['dayOfYearCosine'] = np.cos(2 * np.pi * df['dayOfYear'] / 365.25)
     df['monthSine'] = np.sin(2 * np.pi * df['month'] / 12)
@@ -35,64 +32,49 @@ def temporalFeatures(df):
     return df
 
 def lagFeatures(df):
-    """Create lagged features by site"""
+    """Create lagged features by site - ONLY GAGE HEIGHT (not discharge)"""
 
     lagVals = [1, 7, 14, 30] # Day, week, 2 weeks, month
 
-    for lagVal in lagVals: # Create lag feature for each of lagVals for discharge and gage height
-        df[f'dischargeLag{lagVal}'] = df.groupby('site_code')['discharge'].shift(lagVal)
+    for lagVal in lagVals:
+        # REMOVED discharge lags to prevent leakage
         df[f'gageHeightLag{lagVal}'] = df.groupby('site_code')['gage_height'].shift(lagVal)
 
-    print(f" Added {len(lagVals) * 2} lagged features")
+    print(f" Added {len(lagVals)} lagged features")
     return df
 
 def rollingFeatures(df):
-    """Create rolling window statistics by site"""
+    """Create rolling window statistics by site - ONLY GAGE HEIGHT (not discharge)"""
 
     windows = [7, 14, 30] # week, 2 weeks, month
 
     for window in windows:
-        # Discharge rolling statistics 
-        df[f'dischargeRollingMean{window}'] = ( # Rolling Mean
-            df.groupby('site_code')['discharge'].transform(lambda x: x.rolling(window, min_periods = 1).mean())
-        )
-
-        df[f'dischargeRollingStd{window}'] = ( # Rolling standard deviation
-            df.groupby('site_code')['discharge'].transform(lambda x: x.rolling(window, min_periods = 1).std())
-        )
-
-        df[f'dischargeRollingMin{window}'] = ( # Rolling Minimum
-            df.groupby('site_code')['discharge'].transform(lambda x: x.rolling(window, min_periods = 1).min())
-        )
-        
-        df[f'dischargeRollingMax{window}'] = ( # Rolling Maximum
-            df.groupby('site_code')['discharge'].transform(lambda x: x.rolling(window, min_periods = 1).max())
-        )
+        # REMOVED discharge rolling stats to prevent leakage
         
         # Gage Height rolling statistics
-        df[f'gageHeightRollingMean{window}'] = ( # Rolling Mean
+        df[f'gageHeightRollingMean{window}'] = (
             df.groupby('site_code')['gage_height'].transform(lambda x: x.rolling(window, min_periods = 1).mean())
         )
 
-        df[f'gageHeightRollingStd{window}'] = ( # Rolling standard deviation
+        df[f'gageHeightRollingStd{window}'] = (
             df.groupby('site_code')['gage_height'].transform(lambda x: x.rolling(window, min_periods = 1).std())
         )
 
-        df[f'gageHeightRollingMin{window}'] = ( # Rolling Minimum
+        df[f'gageHeightRollingMin{window}'] = (
             df.groupby('site_code')['gage_height'].transform(lambda x: x.rolling(window, min_periods = 1).min())
         )
         
-        df[f'gageHeightRollingMax{window}'] = ( # Rolling Maximum
+        df[f'gageHeightRollingMax{window}'] = (
             df.groupby('site_code')['gage_height'].transform(lambda x: x.rolling(window, min_periods = 1).max())
         )
 
-        print(f"   Added {len(windows) * 8} rolling features.")
-        return df
+    print(f"   Added {len(windows) * 4} rolling features.")
+    return df
 
 def calculateTrend(series):
-    if len(series < 2):
+    if len(series) < 2:
         return 0
-    x = np.arrange(len(series))
+    x = np.arange(len(series))
     y = series.values
     if np.any(np.isnan(y)):
         return 0
@@ -103,20 +85,13 @@ def calculateTrend(series):
         return 0
 
 def trendFeatures(df):
-    """Create trend and delta features"""
+    """Create trend and delta features - ONLY GAGE HEIGHT (not discharge)"""
 
-    df['dischargeDelta1D'] = df.groupby('site_code')['discharge'].diff(1)
-    df['dischargeDelta7D'] = df.groupby('site_code')['discharge'].diff(7)
-    df['dischargeDelta14D'] = df.groupby('site_code')['discharge'].diff(14)
-    df['dischargeDelta30D'] = df.groupby('site_code')['discharge'].diff(30)
+    # REMOVED discharge deltas and trends to prevent leakage
     df['gageHeightDelta1D'] = df.groupby('site_code')['gage_height'].diff(1)
     df['gageHeightDelta7D'] = df.groupby('site_code')['gage_height'].diff(7)
     df['gageHeightDelta14D'] = df.groupby('site_code')['gage_height'].diff(14)
     df['gageHeightDelta30D'] = df.groupby('site_code')['gage_height'].diff(30)
-
-    df['dischargeTrend7D'] = df.groupby('site_code')['discharge'].transform(
-        lambda x: x.rolling(7, min_periods = 2).apply(calculateTrend, raw= False)
-    )
 
     df['gageHeightTrend7D'] = df.groupby('site_code')['gage_height'].transform(
         lambda x: x.rolling(7, min_periods = 2).apply(calculateTrend, raw= False)
@@ -125,17 +100,22 @@ def trendFeatures(df):
     print("Added trend features")
     return df
 
-def climatologyFeatures(df): 
-    climatologyDischarge = df.groupby(['site_code', 'dayOfYear'])['discharge'].agg([
-        ('dischargeClimateMean', 'mean'),
-        ('dischargeClimateStd', 'std'),
-        ('dischargeClimateMin', 'min'),
-        ('dischargeClimateMax', 'max'),
-        ('dischargeClimateQuant25', lambda x: x.quantile(0.25)),
-        ('dischargeClimateQuant75', lambda x: x.quantile(0.75))
-    ]).reset_index()
-
-    climatologyGageHeight = df.groupby(['site_code', 'dayOfYear'])['gage_height'].agg([
+def climatologyFeatures(df, train_df=None): 
+    """
+    Create climatology features - ONLY GAGE HEIGHT (not discharge)
+    
+    Parameters:
+    - df: The dataframe to add features to
+    - train_df: Training data to calculate climatology from (prevents test leakage)
+              If None, uses df itself (for training data)
+    """
+    
+    # Use training data for climatology calculation if provided
+    clim_data = train_df if train_df is not None else df
+    
+    # REMOVED discharge climatology to prevent leakage
+    
+    climatologyGageHeight = clim_data.groupby(['site_code', 'dayOfYear'])['gage_height'].agg([
         ('gageHClimateMean', 'mean'),
         ('gageHClimateStd', 'std'),
         ('gageHClimateMin', 'min'),
@@ -144,61 +124,63 @@ def climatologyFeatures(df):
         ('gageHClimateQuant75', lambda x: x.quantile(0.75))
     ]).reset_index()
 
-    df = df.merge(climatologyDischarge, on=['site_code', 'dayOfYear'], how = 'left')
     df = df.merge(climatologyGageHeight, on = ['site_code', 'dayOfYear'], how = 'left')
 
-    # Anomaly Columns, checking Vs mean. Z scores
-    df['dischargeAnomaly'] = df['discharge'] - df['dischargeClimateMean']
-    df['dischargeZScore'] = (df['discharge'] - df['dischargeClimateMean']) / (df['dischargeClimateStd'] + 0.000001) # adding 0.000001 ensures no / by 0
+    # REMOVED discharge anomaly and z-score calculations
     
     df['gageHeightAnomaly'] = df['gage_height'] - df['gageHClimateMean']
-    df['gageHeightZScore'] = (df['gage_height'] - df['gageHClimateMean']) / (df['gageHClimateStd'] + 0.000001) # adding 0.000001 ensures no / by 0
+    df['gageHeightZScore'] = (df['gage_height'] - df['gageHClimateMean']) / (df['gageHClimateStd'] + 0.000001)
 
-    print("     Added 16 climatology features")
+    print("     Added 8 climatology features")
     return df
 
-def siteFeatures(df):
-    """Create site based features"""
+def siteFeatures(df, train_df=None):
+    """
+    Create site based features - ONLY GAGE HEIGHT stats (not discharge)
+    
+    Parameters:
+    - df: The dataframe to add features to
+    - train_df: Training data to calculate site stats from (prevents test leakage)
+              If None, uses df itself (for training data)
+    """
+    
+    # Use training data for site stats if provided
+    stats_data = train_df if train_df is not None else df
 
-    siteStats = df.groupby('site_code').agg({
-        'discharge': ['mean', 'std', 'min', 'max'],
+    # REMOVED discharge statistics to prevent leakage
+    siteStats = stats_data.groupby('site_code').agg({
         'gage_height': ['mean', 'std', 'min', 'max'],
         'stream_elevation': 'first',
         'latitude': 'first',
         'longitude': 'first'
     })
 
-    siteStats.columns = ['siteDischargeMean', 'siteDischargeStd', 'siteDischargeMin', 'siteDischargeMax',
-                       'siteGageHeightMean', 'siteGageHeightStd', 'siteGageHeightMin', 'siteGageHeightMax',
+    siteStats.columns = ['siteGageHeightMean', 'siteGageHeightStd', 'siteGageHeightMin', 'siteGageHeightMax',
                        'siteElevation', 'siteLatitude', 'siteLongitude']
     
     siteStats = siteStats.reset_index()
 
     df = df.merge(siteStats, on = 'site_code', how = 'left')
 
-    # Seasonality Strength By Site
-    monthlyDischarge = df.groupby(['site_code', 'month'])['discharge'].mean().reset_index()
-    seasonalityDischarge = monthlyDischarge.groupby('site_code')['discharge'].std().reset_index()
-    seasonalityDischarge.columns = ['site_code', 'siteDischargeSeasonality']
-    df = df.merge(seasonalityDischarge, on = 'site_code', how = 'left')
+    # REMOVED discharge seasonality to prevent leakage
 
-    monthlyGageHeight = df.groupby(['site_code', 'month'])['gage_height'].mean().reset_index()
+    monthlyGageHeight = stats_data.groupby(['site_code', 'month'])['gage_height'].mean().reset_index()
     seasonalityGageHeight = monthlyGageHeight.groupby('site_code')['gage_height'].std().reset_index()
     seasonalityGageHeight.columns = ['site_code', 'siteGageHeightSeasonality']
     df = df.merge(seasonalityGageHeight, on = 'site_code', how = 'left')
 
-    # Geographic features cycle encoding (as done in temporalFeatures)
+    # Geographic features cycle encoding
     df['latitudeSine'] = np.sin(np.radians(df['siteLatitude']))
     df['latitudeCosine'] = np.cos(np.radians(df['siteLatitude']))
     df['longitudeSine'] = np.sin(np.radians(df['siteLongitude']))
     df['longitudeCosine'] = np.cos(np.radians(df['siteLongitude']))
 
-    # Calculate centroid (lat. and long.) of sites
+    # Calculate centroid
     centroidLatitude = df['siteLatitude'].mean()
     centroidLongitude = df['siteLongitude'].mean()
     print(f"    Sites Centroid: {centroidLatitude:.2f}°N, {centroidLongitude:.2f}°W")
 
-    df['distanceFromCentroid'] = np.sqrt( # Calculate using Euclidean Distance Formula: Distance = √((x₂ - x₁)² + (y₂ - y₁)²)
+    df['distanceFromCentroid'] = np.sqrt(
         (df['siteLatitude'] - centroidLatitude) **2 +
         (df['siteLongitude'] - centroidLongitude) **2
     )
@@ -207,11 +189,11 @@ def siteFeatures(df):
     return df
 
 def crossVarFeatures(df):
-    """Create features based on variable interactions"""
+    """Create features based on variable interactions - NO DISCHARGE"""
 
-    df['dischargeGageHeightRatio'] = df['discharge'] / (df['gage_height'] + 0.01) # + 0.01 to prevent division by 0
+    # REMOVED discharge/gage_height ratio to prevent leakage
 
-    # Temperature features (NOTE: most monitoring locations don't provide temperature data)
+    # Temperature features (most monitoring locations don't provide temperature data)
     df['temperatureLag1'] = df.groupby('site_code')['temperature'].shift(1)
     df['temperatureRolling7'] = df.groupby('site_code')['temperature'].transform(
         lambda x: x.rolling(7, min_periods = 1).mean()
@@ -222,13 +204,21 @@ def crossVarFeatures(df):
 
     return df
 
-def categoricalEnconding(df):
+def categoricalEncoding(df, train_df=None):
     """
-    Encode sites by average discharge cfs
-    MLP can't handle catergorical site codes. 
-    By average cfs, it tells the model that any given site is a high, low, moderate, etc. flow site
+    Encode sites by average GAGE HEIGHT (not discharge)
+    
+    Parameters:
+    - df: The dataframe to add features to
+    - train_df: Training data to calculate encoding from (prevents test leakage)
+              If None, uses df itself (for training data)
     """
-    siteEncoding = df.groupby('site_code')['discharge'].mean().to_dict()
+    
+    # Use training data for encoding if provided
+    encoding_data = train_df if train_df is not None else df
+    
+    # CHANGED from discharge to gage_height
+    siteEncoding = encoding_data.groupby('site_code')['gage_height'].mean().to_dict()
     df['encodedSiteCode'] = df['site_code'].map(siteEncoding)
 
     print("     Added encoded feature")

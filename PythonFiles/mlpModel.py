@@ -68,10 +68,6 @@ def scaleFeatures(X_train, X_val, X_test, y_train, y_val, y_test):
     
     print("Scaling complete")
 
-    joblib.dump(featureScaler, 'Scaler/feature_scaler.pkl')
-    joblib.dump(targetScaler, 'Scaler/target_scaler.pkl')
-    
-    print("Saved scalers")
     return X_train_scaled, X_val_scaled, X_test_scaled, y_train_scaled, y_val_scaled, y_test_scaled, featureScaler, targetScaler
 
 def buildMLP(inputDim, hiddenLayers, dropoutRate, LR):
